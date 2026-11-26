@@ -1,30 +1,54 @@
-version: '3.8'
+# ชื่อโปรเจกต์ Compose ใช้ตั้งชื่อตามค่าเริ่มต้นให้ network และ volume
+name: first-web-student-portal
 
 services:
+  # เว็บ PHP/Apache ที่ build จาก Dockerfile ในโฟลเดอร์นี้
   web:
     build: .
     container_name: php_web
+    # พอร์ตเครื่อง:พอร์ตใน container
     ports:
-      - "8080:80"
+      - "8091:80"
+    # ซิงก์ source code บนเครื่องเข้า document root ของ Apache
     volumes:
       - ./src:/var/www/html
+    # ค่าการเชื่อมต่อฐานข้อมูล; ภายใน Compose ใช้ชื่อ service db และพอร์ต 3306
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: studentdb
+      DB_USER: admin
+      DB_PASSWORD: admin123
     depends_on:
-      - db
+      db:
+        # รอให้ MySQL ตอบ health check ก่อนเริ่มเว็บ
+        condition: service_healthy
 
+  # MySQL เก็บฐานข้อมูลแยกจาก container เว็บ
   db:
     image: mysql:8.0
     container_name: mysql_db
     restart: always
+    # ค่าตั้งต้นของ MySQL; MYSQL_DATABASE ใช้สร้างฐานข้อมูลเมื่อเริ่ม volume ใหม่
     environment:
       MYSQL_ROOT_PASSWORD: 1234
       MYSQL_DATABASE: studentdb
       MYSQL_USER: admin
       MYSQL_PASSWORD: admin123
     ports:
-      - "3307:3306"
+      - "3308:3306"
+    # volume ทำให้ข้อมูลคงอยู่แม้ลบหรือสร้าง container ใหม่
     volumes:
       - mysql_data:/var/lib/mysql
+    # ตรวจว่า MySQL พร้อมรับการเชื่อมต่อแล้ว
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
+  # หน้าเว็บจัดการ MySQL ผ่านเบราว์เซอร์
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
     container_name: phpmyadmin
@@ -35,7 +59,8 @@ services:
       PMA_HOST: db
       PMA_PORT: 3306
     ports:
-      - "8083:80"
+      - "8087:80"
 
+# ประกาศ volume สำหรับเก็บข้อมูล MySQL แบบถาวร
 volumes:
   mysql_data:
